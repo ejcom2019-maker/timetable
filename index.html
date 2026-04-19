@@ -41,6 +41,7 @@
     .status { font-size: 13px; color: #888; margin-bottom: 12px; min-height: 20px; }
     .badge { display: inline-block; background: #e8f5e9; color: #2e7d32;
              font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+    .changed { font-weight: 600; }
   </style>
 </head>
 <body>
@@ -63,18 +64,15 @@
 // ★ 여기에 Apps Script 배포 URL 붙여넣기
 const API_URL = 'https://script.googleusercontent.com/a/macros/janghang.cnems.kr/echo?user_content_key=AWDtjMXQKyClOI5OtmOORphBYk5dXh7MIvHWzfOa7yZOI9G2s0uqh9sX21VTfMwqG3gilmJUrrwtOo-orxiQn9LPzYGDs_yaOmzgvDtRZFfzHQYy0Wgp8IDzgz6OTf2TTiqToOZYBgKk0iaDLYAAY-xJ7iQVt3bZg8uMdwEYRnc0WiQF9fcLrBrgUo3Fq6ar0UhChmTchrFfOpZF8UwQ3zqU5PQugGzAafsI06Btp8Y6SzWPSbuKwscXLz5agjT5QSrWg5cIZt5D8yKF1o8rZ43m5F8d9nymzghyI3Jopm8a88eNBBVyT9s&lib=MlF58lrDi6sMHlG5FJOVZSgj9D7hF3JnY';
 
-// 교시별 시간 (학교 실정에 맞게 수정 가능)
-const TIMES = [
-  ['08:30','09:10'], ['09:20','10:00'], ['10:10','10:50'],
-  ['11:00','11:40'], ['11:50','12:30'], ['13:30','14:10'], ['14:20','15:00']
-];
-
-let allData = {};        // { "4월 3주": { "날짜": { 1: { "1-1": "수학" } } } }
-let currentWeek = '';    // 현재 선택된 주차 이름
+let allData = {};
+let currentWeek = '';
 let currentMode = 'student';
 
-// ── 현재 교시 계산 ─────────────────────────
 function getCurrentPeriod() {
+  const TIMES = [
+    ['08:30','09:10'], ['09:20','10:00'], ['10:10','10:50'],
+    ['11:00','11:40'], ['11:50','12:30'], ['13:30','14:10'], ['14:20','15:00']
+  ];
   const now = new Date();
   const t = now.getHours() * 60 + now.getMinutes();
   for (let i = 0; i < TIMES.length; i++) {
@@ -85,13 +83,11 @@ function getCurrentPeriod() {
   return -1;
 }
 
-// ── 오늘 날짜 문자열 ──────────────────────
 function getTodayStr() {
   const d = new Date();
   return `${d.getFullYear()}. ${d.getMonth()+1}. ${d.getDate()}`;
 }
 
-// ── 데이터 불러오기 ───────────────────────
 async function loadAll() {
   try {
     const res = await fetch(API_URL);
@@ -104,7 +100,6 @@ async function loadAll() {
   }
 }
 
-// ── 주차 탭 생성 ──────────────────────────
 function initWeekTabs() {
   const weeks = Object.keys(allData);
   const tabsEl = document.getElementById('weekTabs');
@@ -119,7 +114,6 @@ function initWeekTabs() {
     }
   }
 
-  // 처음엔 2개만 보이고 나머지는 "더보기"로 숨김
   weeks.forEach((w, i) => {
     const btn = document.createElement('button');
     btn.className = 'week-btn' + (w === autoSelect ? ' active' : '');
@@ -130,7 +124,6 @@ function initWeekTabs() {
     tabsEl.appendChild(btn);
   });
 
-  // 더보기 버튼
   if (weeks.length > 2) {
     const more = document.createElement('button');
     more.className = 'week-btn';
@@ -148,26 +141,14 @@ function initWeekTabs() {
   selectWeek(autoSelect);
 }
 
-  weeks.forEach(w => {
-    const btn = document.createElement('button');
-    btn.className = 'week-btn' + (w === autoSelect ? ' active' : '');
-    btn.textContent = w;
-    btn.onclick = () => selectWeek(w);
-    tabsEl.appendChild(btn);
-  });
-
-  selectWeek(autoSelect);
-}
-
 function selectWeek(weekName) {
   currentWeek = weekName;
-  document.querySelectorAll('.week-btn').forEach(b =>
+  document.querySelectorAll('.week-btn[data-index]').forEach(b =>
     b.classList.toggle('active', b.textContent === weekName));
   renderFilters();
   render();
 }
 
-// ── 모드 전환 ─────────────────────────────
 function setMode(mode, btn) {
   currentMode = mode;
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
@@ -176,15 +157,13 @@ function setMode(mode, btn) {
   render();
 }
 
-// ── 필터 UI 생성 ──────────────────────────
 function renderFilters() {
   const el = document.getElementById('filters');
   const dates = Object.keys(allData[currentWeek] || {});
   const today = getTodayStr().replace(/\s/g,'');
 
-  // 날짜 옵션 (오늘 자동 선택)
   const dateOptions = dates.map(d => {
-    const selected = d.replace(/\s/g,'').startsWith(today) ? ' selected' : '';
+    const selected = d.replace(/\s/g,'').includes(today) ? ' selected' : '';
     return `<option value="${d}"${selected}>${d}</option>`;
   }).join('');
 
@@ -205,13 +184,11 @@ function renderFilters() {
   } else {
     el.innerHTML = `
       <select id="fDate" onchange="render()">${dateOptions}</select>
-      <input type="text" id="fKeyword" placeholder="과목명 입력 (예: 수학, 영어)"
-             oninput="render()" />
+      <input type="text" id="fKeyword" placeholder="과목명 입력 (예: 수학, 영어)" oninput="render()" />
     `;
   }
 }
 
-// ── 렌더링 ────────────────────────────────
 function render() {
   if (currentMode === 'student') renderStudent();
   else renderTeacher();
@@ -234,15 +211,16 @@ function renderStudent() {
 
   if (!dayData) { out.innerHTML = '<div class="empty">해당 날짜의 데이터가 없습니다</div>'; return; }
 
-let html = `<table>
-    <thead><tr><th>교시</th><th>과목</th></tr></thead><tbody>`;
+  let html = `<table><thead><tr><th>교시</th><th>과목</th></tr></thead><tbody>`;
   for (let p = 1; p <= 7; p++) {
-const cell = dayData[p]?.[key];
-const subj = cell?.v || '-';
-const isRed = cell?.c && cell.c !== '#000000' && cell.c !== '#000' && cell.c !== 'black';
+    const cell = dayData[p]?.[key];
+    const subj = cell?.v || '-';
+    const color = cell?.c;
+    const isColored = color && color !== '#000000' && color !== '#000' && color !== 'black' && color !== '#ffffff' && color !== 'white';
+    const style = isColored ? `style="color:${color};font-weight:600"` : '';
     html += `<tr${curP === p ? ' class="current-period"' : ''}>
-<td>${p}교시</td>
-<td style="${isRed ? 'color:'+cell.c+';font-weight:600' : ''}">${subj}</td>
+      <td>${p}교시</td>
+      <td ${style}>${subj}</td>
     </tr>`;
   }
   html += '</tbody></table>';
@@ -256,8 +234,7 @@ function renderTeacher() {
   const info    = document.getElementById('info');
   const curP    = getCurrentPeriod();
 
-  info.innerHTML = date
-    + (curP > 0 ? `<span class="badge">${curP}교시 수업 중</span>` : '');
+  info.innerHTML = date + (curP > 0 ? `<span class="badge">${curP}교시 수업 중</span>` : '');
 
   if (!keyword) { out.innerHTML = '<div class="empty">과목명을 입력하세요</div>'; return; }
 
@@ -269,9 +246,10 @@ function renderTeacher() {
     const row = dayData[p]; if (!row) continue;
     for (let g of ['1','2','3']) {
       for (let c of ['1','2','3']) {
-        const subj = row[`${g}-${c}`] || '';
+        const cell = row[`${g}-${c}`];
+        const subj = cell?.v || '';
         if (subj.replace(/[\s㈜()]/g,'').includes(keyword.replace(/\s/g,''))) {
-          results.push({ p, g, c, subj });
+          results.push({ p, g, c, subj, color: cell?.c });
         }
       }
     }
@@ -281,20 +259,20 @@ function renderTeacher() {
     out.innerHTML = `<div class="empty">"${keyword}" 과목을 찾을 수 없습니다</div>`; return;
   }
 
-let html = `<table>
-    <thead><tr><th>교시</th><th>과목</th></tr></thead><tbody>`;
-  for (let { p, g, c, subj } of results) {
+  let html = `<table><thead><tr><th>교시</th><th>학년/반</th><th>과목</th></tr></thead><tbody>`;
+  for (let { p, g, c, subj, color } of results) {
+    const isColored = color && color !== '#000000' && color !== '#000' && color !== 'black' && color !== '#ffffff' && color !== 'white';
+    const style = isColored ? `style="color:${color};font-weight:600"` : '';
     html += `<tr${curP === p ? ' class="current-period"' : ''}>
-<td>${p}교시</td>
-      <td>${subj}</td>
-      <td>${subj}</td>
+      <td>${p}교시</td>
+      <td>${g}학년 ${c}반</td>
+      <td ${style}>${subj}</td>
     </tr>`;
   }
   html += '</tbody></table>';
   out.innerHTML = html;
 }
 
-// ── 시작 ──────────────────────────────────
 loadAll();
 </script>
 </body>
