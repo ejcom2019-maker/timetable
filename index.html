@@ -8,12 +8,9 @@
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif;
            background: #f5f5f5; color: #111; }
-
     .header { background: white; padding: 16px; border-bottom: 1px solid #e0e0e0;
               position: sticky; top: 0; z-index: 10; }
     .header h1 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
-
-    /* 주차 탭 가로 스크롤 */
     .week-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;
                  scrollbar-width: none; margin-bottom: 12px; }
     .week-tabs::-webkit-scrollbar { display: none; }
@@ -21,30 +18,22 @@
                 background: white; border-radius: 20px; cursor: pointer;
                 font-size: 13px; color: #555; white-space: nowrap; }
     .week-btn.active { background: #1a73e8; color: white; border-color: #1a73e8; }
-
-    /* 학생/교사 모드 */
     .mode-row { display: flex; gap: 8px; margin-bottom: 0; }
     .mode-btn { flex: 1; padding: 10px; border: 1px solid #ddd; background: white;
                 border-radius: 8px; cursor: pointer; font-size: 14px; color: #555;
                 font-weight: 500; }
     .mode-btn.active { background: #111; color: white; border-color: #111; }
-
     .content { padding: 16px; }
-
-    /* 필터 */
     .filters { display: flex; gap: 8px; margin-bottom: 16px; }
     .filters select { flex: 1; padding: 10px 8px; border: 1px solid #ddd;
                       border-radius: 8px; font-size: 14px; background: white;
                       appearance: none; text-align: center; min-width: 0; }
     .filters input { flex: 1; padding: 10px 12px; border: 1px solid #ddd;
                      border-radius: 8px; font-size: 14px; background: white; min-width: 0; }
-
     .info { font-size: 13px; color: #888; margin-bottom: 12px; min-height: 20px;
             display: flex; align-items: center; gap: 8px; }
     .badge { background: #e8f5e9; color: #2e7d32; font-size: 11px;
              padding: 3px 10px; border-radius: 10px; white-space: nowrap; }
-
-    /* 테이블 */
     table { width: 100%; border-collapse: collapse; background: white;
             border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
     th { background: #f8f8f8; padding: 11px 8px; text-align: center;
@@ -55,7 +44,6 @@
     tr:last-child td { border-bottom: none; }
     tr.current-period td { background: #f0fff4; }
     tr.current-period td:first-child { color: #2e7d32; font-weight: 700; }
-
     .period-num { font-size: 13px; color: #999; }
     .empty { text-align: center; padding: 48px 16px; color: #bbb; font-size: 15px;
              background: white; border-radius: 12px; }
@@ -63,7 +51,6 @@
   </style>
 </head>
 <body>
-
 <div class="header">
   <h1>장항중 2026학년도 1학기 수업시간표</h1>
   <div class="week-tabs" id="weekTabs"></div>
@@ -72,241 +59,131 @@
     <button class="mode-btn" onclick="setMode('teacher', this)">교사</button>
   </div>
 </div>
-
 <div class="content">
   <div class="filters" id="filters"></div>
   <div class="info" id="info"></div>
   <div id="output"><div class="status">불러오는 중...</div></div>
 </div>
-
 <script>
-// ★ Apps Script 배포 URL 여기에 붙여넣기
 const API_URL = 'https://script.googleusercontent.com/a/macros/janghang.cnems.kr/echo?user_content_key=AWDtjMWG-faTN6-BgmrYpuvab4aZIje7EtAzIXJVBcpugbeh5wxyWQuarw6rbQRyJqbmo-qOIMmMXZ9wKLi32KOPucS9zAV2U5SumWOBRCSHTnkPdhi3Bd2y3eiJy8b2ofygZqUqqF5cYSi_-V6BF9siN2LZZqP_q3O-4JdRTpytYvZXhQysffBTQiafexXys5xUeymF8kWM1hqW-YFn976Sr9Y3NkkzPyPL9tcBdQNaImquUHkM-pcihuDn_Rw-ldVlWU03EvQzDyRdR-3WUlE9a2_5gg6VRpjQc33ZHKt7MX-oxM8g0Ow&lib=MlF58lrDi6sMHlG5FJOVZSgj9D7hF3JnY';
 
-let allData = {};
-let currentWeek = '';
-let currentMode = 'student';
+let allData = {}, currentWeek = '', currentMode = 'student';
 
 function getCurrentPeriod() {
-  const TIMES = [
-    [8,30,9,10],[9,20,10,0],[10,10,10,50],
-    [11,0,11,40],[11,50,12,30],[13,30,14,10],[14,20,15,0]
-  ];
-  const now = new Date();
-  const t = now.getHours() * 60 + now.getMinutes();
-  for (let i = 0; i < TIMES.length; i++) {
-    const [sh,sm,eh,em] = TIMES[i];
-    if (t >= sh*60+sm && t <= eh*60+em) return i+1;
-  }
+  const TIMES = [[8,30,9,10],[9,20,10,0],[10,10,10,50],[11,0,11,40],[11,50,12,30],[13,30,14,10],[14,20,15,0]];
+  const now = new Date(), t = now.getHours()*60+now.getMinutes();
+  for (let i=0;i<TIMES.length;i++){const[sh,sm,eh,em]=TIMES[i];if(t>=sh*60+sm&&t<=eh*60+em)return i+1;}
   return -1;
 }
 
-function getTodayStr() {
-  const d = new Date();
-  return d.getFullYear() + '. ' + (d.getMonth()+1) + '. ' + d.getDate();
-}
+function getTodayStr(){const d=new Date();return d.getFullYear()+'. '+(d.getMonth()+1)+'. '+d.getDate();}
 
-async function loadAll() {
-  try {
-    const res = await fetch(API_URL);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    allData = json;
-    document.getElementById('output').innerHTML = '';
+async function loadAll(){
+  try{
+    const res=await fetch(API_URL);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    allData=await res.json();
+    document.getElementById('output').innerHTML='';
     initWeekTabs();
-  } catch(e) {
-    document.getElementById('output').innerHTML =
-      '<div class="status">불러오기 실패: ' + e.message + '</div>';
-  }
+  }catch(e){document.getElementById('output').innerHTML='<div class="status">불러오기 실패: '+e.message+'</div>';}
 }
 
-function initWeekTabs() {
-  const weeks = Object.keys(allData);
-  const tabsEl = document.getElementById('weekTabs');
-  tabsEl.innerHTML = '';
-
-  const today = getTodayStr().replace(/\s/g,'');
-  let autoSelect = weeks[0];
-  for (let w of weeks) {
-    const dates = Object.keys(allData[w] || {});
-    if (dates.some(d => d.replace(/\s/g,'').includes(today))) {
-      autoSelect = w;
-    }
-  }
-
-  weeks.forEach((w, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'week-btn' + (w === autoSelect ? ' active' : '');
-    btn.textContent = w;
-    btn.dataset.index = i;
-    btn.style.display = i < 2 ? 'inline-block' : 'none';
-    btn.onclick = () => selectWeek(w);
+function initWeekTabs(){
+  const weeks=Object.keys(allData),tabsEl=document.getElementById('weekTabs');
+  tabsEl.innerHTML='';
+  const today=getTodayStr().replace(/\s/g,'');
+  let autoSelect=weeks[0];
+  for(let w of weeks){if(Object.keys(allData[w]||{}).some(d=>d.replace(/\s/g,'').includes(today)))autoSelect=w;}
+  weeks.forEach((w,i)=>{
+    const btn=document.createElement('button');
+    btn.className='week-btn'+(w===autoSelect?' active':'');
+    btn.textContent=w;btn.dataset.index=i;
+    btn.style.display=i<2?'inline-block':'none';
+    btn.onclick=()=>selectWeek(w);
     tabsEl.appendChild(btn);
   });
-
-  if (weeks.length > 2) {
-    const more = document.createElement('button');
-    more.className = 'week-btn';
-    more.textContent = '더보기 ▾';
-    more.onclick = () => {
-      document.querySelectorAll('.week-btn[data-index]').forEach(b => {
-        b.style.display = 'inline-block';
-      });
-      more.style.display = 'none';
-    };
+  if(weeks.length>2){
+    const more=document.createElement('button');
+    more.className='week-btn';more.textContent='더보기 ▾';
+    more.onclick=()=>{document.querySelectorAll('.week-btn[data-index]').forEach(b=>b.style.display='inline-block');more.style.display='none';};
     tabsEl.appendChild(more);
   }
-
   selectWeek(autoSelect);
 }
 
-function selectWeek(weekName) {
-  currentWeek = weekName;
-  document.querySelectorAll('.week-btn[data-index]').forEach(b =>
-    b.classList.toggle('active', b.textContent === weekName));
-  renderFilters();
-  render();
+function selectWeek(w){
+  currentWeek=w;
+  document.querySelectorAll('.week-btn[data-index]').forEach(b=>b.classList.toggle('active',b.textContent===w));
+  renderFilters();render();
 }
 
-function setMode(mode, btn) {
-  currentMode = mode;
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderFilters();
-  render();
+function setMode(mode,btn){
+  currentMode=mode;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');renderFilters();render();
 }
 
-function renderFilters() {
-  const el = document.getElementById('filters');
-  const dates = Object.keys(allData[currentWeek] || {});
-  const today = getTodayStr().replace(/\s/g,'');
-
-  const dateOptions = dates.map(d => {
-    const sel = d.replace(/\s/g,'').includes(today) ? ' selected' : '';
-    return '<option value="' + d + '"' + sel + '>' + d + '</option>';
-  }).join('');
-
-  if (currentMode === 'student') {
-    el.innerHTML =
-      '<select id="fDate" onchange="render()">' + dateOptions + '</select>' +
-      '<select id="fGrade" onchange="render()">' +
-        '<option value="1">1학년</option>' +
-        '<option value="2">2학년</option>' +
-        '<option value="3">3학년</option>' +
-      '</select>' +
-      '<select id="fClass" onchange="render()">' +
-        '<option value="1">1반</option>' +
-        '<option value="2">2반</option>' +
-        '<option value="3">3반</option>' +
-      '</select>';
-  } else {
-    el.innerHTML =
-      '<select id="fDate" onchange="render()">' + dateOptions + '</select>' +
-      '<input type="text" id="fKeyword" placeholder="과목명 입력" oninput="render()" />';
+function renderFilters(){
+  const el=document.getElementById('filters'),dates=Object.keys(allData[currentWeek]||{});
+  const today=getTodayStr().replace(/\s/g,'');
+  const opts=dates.map(d=>'<option value="'+d+'"'+(d.replace(/\s/g,'').includes(today)?' selected':'')+'>'+d+'</option>').join('');
+  if(currentMode==='student'){
+    el.innerHTML='<select id="fDate" onchange="render()">'+opts+'</select>'+
+      '<select id="fGrade" onchange="render()"><option value="1">1학년</option><option value="2">2학년</option><option value="3">3학년</option></select>'+
+      '<select id="fClass" onchange="render()"><option value="1">1반</option><option value="2">2반</option><option value="3">3반</option></select>';
+  }else{
+    el.innerHTML='<select id="fDate" onchange="render()">'+opts+'</select><input type="text" id="fKeyword" placeholder="과목명 입력" oninput="render()" />';
   }
 }
 
-function isColoredCell(c) {
-  if (!c) return false;
-  const normalized = c.toLowerCase().replace(/\s/g,'');
-  return normalized !== '#000000' && normalized !== '#000' &&
-         normalized !== 'black' && normalized !== '#ffffff' &&
-         normalized !== 'white' && normalized !== '#ffff00' &&
-         normalized !== '';
+function isColoredCell(c){
+  if(!c)return false;
+  const n=c.toLowerCase().replace(/\s/g,'');
+  return n!=='#000000'&&n!=='#000'&&n!=='black'&&n!=='#ffffff'&&n!=='white'&&n!=='#ffff00'&&n!=='';
 }
 
-function render() {
-  if (currentMode === 'student') renderStudent();
-  else renderTeacher();
+function render(){if(currentMode==='student')renderStudent();else renderTeacher();}
+
+function renderStudent(){
+  const date=document.getElementById('fDate')?.value,grade=document.getElementById('fGrade')?.value,cls=document.getElementById('fClass')?.value;
+  if(!date||!grade||!cls)return;
+  const key=grade+'학년 '+cls+'반', dayData=allData[currentWeek]?.[date], curP=getCurrentPeriod();
+  document.getElementById('info').innerHTML='<span>'+date+' | '+grade+'학년 '+cls+'반</span>'+(curP>0?'<span class="badge">'+curP+'교시 수업 중</span>':'');
+  if(!dayData){document.getElementById('output').innerHTML='<div class="empty">해당 날짜 데이터가 없습니다</div>';return;}
+  let html='<table><thead><tr><th>교시</th><th>과목</th></tr></thead><tbody>';
+  for(let p=1;p<=7;p++){
+    const cell=dayData[p]?.[key],subj=cell?.v||'-',color=cell?.c,colored=isColoredCell(color);
+    const style=colored?' style="color:'+color+';font-weight:700"':'';
+    html+='<tr'+(curP===p?' class="current-period"':'')+'>'+
+      '<td><span class="period-num">'+p+'교시</span></td><td'+style+'>'+subj+'</td></tr>';
+  }
+  html+='</tbody></table>';
+  document.getElementById('output').innerHTML=html;
 }
 
-function renderStudent() {
-  const date  = document.getElementById('fDate')?.value;
-  const grade = document.getElementById('fGrade')?.value;
-  const cls   = document.getElementById('fClass')?.value;
-  if (!date || !grade || !cls) return;
-
-  const key     = grade + '-' + cls;
-  const dayData = allData[currentWeek]?.[date];
-  const curP    = getCurrentPeriod();
-
-  document.getElementById('info').innerHTML =
-    '<span>' + date + ' | ' + grade + '학년 ' + cls + '반</span>' +
-    (curP > 0 ? '<span class="badge">' + curP + '교시 수업 중</span>' : '');
-
-  if (!dayData) {
-    document.getElementById('output').innerHTML = '<div class="empty">해당 날짜 데이터가 없습니다</div>';
-    return;
-  }
-
-  let html = '<table><thead><tr><th>교시</th><th>과목</th></tr></thead><tbody>';
-  for (let p = 1; p <= 7; p++) {
-    const cell  = dayData[p]?.[key];
-    const subj  = cell?.v || '-';
-    const color = cell?.c;
-    const colored = isColoredCell(color);
-    const style = colored ? ' style="color:' + color + ';font-weight:700"' : '';
-    html += '<tr' + (curP === p ? ' class="current-period"' : '') + '>' +
-      '<td><span class="period-num">' + p + '교시</span></td>' +
-      '<td' + style + '>' + subj + '</td>' +
-      '</tr>';
-  }
-  html += '</tbody></table>';
-  document.getElementById('output').innerHTML = html;
-}
-
-function renderTeacher() {
-  const date    = document.getElementById('fDate')?.value;
-  const keyword = document.getElementById('fKeyword')?.value?.trim();
-  const curP    = getCurrentPeriod();
-
-  document.getElementById('info').innerHTML =
-    '<span>' + (date || '') + '</span>' +
-    (curP > 0 ? '<span class="badge">' + curP + '교시 수업 중</span>' : '');
-
-  if (!keyword) {
-    document.getElementById('output').innerHTML = '<div class="empty">과목명을 입력하세요</div>';
-    return;
-  }
-
-  const dayData = allData[currentWeek]?.[date];
-  if (!dayData) {
-    document.getElementById('output').innerHTML = '<div class="empty">해당 날짜 데이터가 없습니다</div>';
-    return;
-  }
-
-  const results = [];
-  for (let p = 1; p <= 7; p++) {
-    const row = dayData[p]; if (!row) continue;
-    for (let g of ['1','2','3']) {
-      for (let c of ['1','2','3']) {
-        const cell = row[g + '-' + c];
-        const subj = cell?.v || '';
-        if (subj.replace(/[\s㈜()]/g,'').includes(keyword.replace(/\s/g,''))) {
-          results.push({ p, g, c, subj, color: cell?.c });
-        }
-      }
+function renderTeacher(){
+  const date=document.getElementById('fDate')?.value,keyword=document.getElementById('fKeyword')?.value?.trim(),curP=getCurrentPeriod();
+  document.getElementById('info').innerHTML='<span>'+(date||'')+'</span>'+(curP>0?'<span class="badge">'+curP+'교시 수업 중</span>':'');
+  if(!keyword){document.getElementById('output').innerHTML='<div class="empty">과목명을 입력하세요</div>';return;}
+  const dayData=allData[currentWeek]?.[date];
+  if(!dayData){document.getElementById('output').innerHTML='<div class="empty">해당 날짜 데이터가 없습니다</div>';return;}
+  const results=[];
+  for(let p=1;p<=7;p++){
+    const row=dayData[p];if(!row)continue;
+    for(let g of['1','2','3'])for(let c of['1','2','3']){
+      const key=g+'학년 '+c+'반',cell=row[key],subj=cell?.v||'';
+      if(subj.replace(/[\s㈜()]/g,'').includes(keyword.replace(/\s/g,'')))results.push({p,g,c,subj,color:cell?.c});
     }
   }
-
-  if (results.length === 0) {
-    document.getElementById('output').innerHTML =
-      '<div class="empty">"' + keyword + '" 과목을 찾을 수 없습니다</div>';
-    return;
+  if(results.length===0){document.getElementById('output').innerHTML='<div class="empty">"'+keyword+'" 과목을 찾을 수 없습니다</div>';return;}
+  let html='<table><thead><tr><th>교시</th><th>학년/반</th><th>과목</th></tr></thead><tbody>';
+  for(let{p,g,c,subj,color}of results){
+    const colored=isColoredCell(color),style=colored?' style="color:'+color+';font-weight:700"':'';
+    html+='<tr'+(curP===p?' class="current-period"':'')+'>'+
+      '<td><span class="period-num">'+p+'교시</span></td><td>'+g+'학년 '+c+'반</td><td'+style+'>'+subj+'</td></tr>';
   }
-
-  let html = '<table><thead><tr><th>교시</th><th>학년/반</th><th>과목</th></tr></thead><tbody>';
-  for (let { p, g, c, subj, color } of results) {
-    const colored = isColoredCell(color);
-    const style = colored ? ' style="color:' + color + ';font-weight:700"' : '';
-    html += '<tr' + (curP === p ? ' class="current-period"' : '') + '>' +
-      '<td><span class="period-num">' + p + '교시</span></td>' +
-      '<td>' + g + '학년 ' + c + '반</td>' +
-      '<td' + style + '>' + subj + '</td>' +
-      '</tr>';
-  }
-  html += '</tbody></table>';
-  document.getElementById('output').innerHTML = html;
+  html+='</tbody></table>';
+  document.getElementById('output').innerHTML=html;
 }
 
 loadAll();
