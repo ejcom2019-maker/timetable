@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>수업시간표</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; padding: 16px; max-width: 720px; margin: 0 auto; background: #f9f9f9; }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 16px; color: #111; }
+
+    .week-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .week-btn { padding: 7px 14px; border: 1px solid #ccc; background: white;
+                border-radius: 20px; cursor: pointer; font-size: 13px; color: #555; }
+    .week-btn.active { background: #1a73e8; color: white; border-color: #1a73e8; }
+
+    .mode-row { display: flex; gap: 6px; margin-bottom: 14px; }
+    .mode-btn { padding: 6px 16px; border: 1px solid #ccc; background: white;
+                border-radius: 6px; cursor: pointer; font-size: 13px; color: #555; }
+    .mode-btn.active { background: #333; color: white; border-color: #333; }
+
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+    .filters select, .filters input {
+      padding: 7px 10px; border: 1px solid #ccc; border-radius: 6px;
+      font-size: 13px; background: white; }
+    .filters input { flex: 1; min-width: 180px; }
+
+    .info { font-size: 12px; color: #888; margin-bottom: 10px; min-height: 18px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; background: white;
+            border-radius: 8px; overflow: hidden; border: 1px solid #e0e0e0; }
+    th { background: #f5f5f5; padding: 9px 12px; border-bottom: 1px solid #e0e0e0;
+         text-align: center; font-weight: 500; color: #444; }
+    td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; text-align: center; color: #222; }
+    tr:last-child td { border-bottom: none; }
+    tr.current-period td { background: #e8f5e9; font-weight: 600; }
+    tr.current-period td:first-child { color: #2e7d32; }
+
+    .empty { text-align: center; padding: 40px; color: #aaa; font-size: 14px;
+             background: white; border-radius: 8px; border: 1px solid #e0e0e0; }
+    .status { font-size: 13px; color: #888; margin-bottom: 12px; min-height: 20px; }
+    .badge { display: inline-block; background: #e8f5e9; color: #2e7d32;
+             font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>📅 수업시간표</h1>
+
+<div class="week-tabs" id="weekTabs"></div>
+
+<div class="mode-row">
+  <button class="mode-btn active" onclick="setMode('student', this)">학생</button>
+  <button class="mode-btn" onclick="setMode('teacher', this)">교사</button>
+</div>
+
+<div class="filters" id="filters"></div>
+<div class="status" id="status">불러오는 중...</div>
+<div class="info" id="info"></div>
+<div id="output"></div>
+
+<script>
+// ★ 여기에 Apps Script 배포 URL 붙여넣기
+const API_URL = 'https://script.google.com/macros/s/https://script.googleusercontent.com/a/macros/janghang.cnems.kr/echo?user_content_key=AWDtjMWRw_A1uyG8nxsLGhvXFvImF1Xb9SH9t0wpXMnhHlVc0Zfb9dGcZrLsKKraZZsB76N5wvscRxrY7kss3Ro72alb6ruYZuuNwKopNdB-aWJgHDV9uUXLwYkgDCivlcHHk48z1USSX7JAxU2L465flIciliuxDtVR0P3mfHJri0OSxy8NVKLmmrBSVwW5NrEScNjRSF73CEa6CZZNTDe3ezCguWzgtvFq_HE6CHpfKaL4J8-QEUgqzHkylpJDZH0tX_2mUuxhTS1clh3XdxLGTiOsZd3wyY384X3fS7ed53D-Mz8MFvI&lib=MlF58lrDi6sMHlG5FJOVZSgj9D7hF3JnY/exec';
+
+// 교시별 시간 (학교 실정에 맞게 수정 가능)
+const TIMES = [
+  ['08:30','09:10'], ['09:20','10:00'], ['10:10','10:50'],
+  ['11:00','11:40'], ['11:50','12:30'], ['13:30','14:10'], ['14:20','15:00']
+];
+
+let allData = {};        // { "4월 3주": { "날짜": { 1: { "1-1": "수학" } } } }
+let currentWeek = '';    // 현재 선택된 주차 이름
+let currentMode = 'student';
+
+// ── 현재 교시 계산 ─────────────────────────
+function getCurrentPeriod() {
+  const now = new Date();
+  const t = now.getHours() * 60 + now.getMinutes();
+  for (let i = 0; i < TIMES.length; i++) {
+    const [sh, sm] = TIMES[i][0].split(':').map(Number);
+    const [eh, em] = TIMES[i][1].split(':').map(Number);
+    if (t >= sh * 60 + sm && t <= eh * 60 + em) return i + 1;
+  }
+  return -1;
+}
+
+// ── 오늘 날짜 문자열 ──────────────────────
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}. ${d.getMonth()+1}. ${d.getDate()}`;
+}
+
+// ── 데이터 불러오기 ───────────────────────
+async function loadAll() {
+  try {
+    const res = await fetch(API_URL);
+    const json = await res.json();
+    allData = json;
+    document.getElementById('status').textContent = '';
+    initWeekTabs();
+  } catch(e) {
+    document.getElementById('status').textContent = '불러오기 실패: ' + e.message;
+  }
+}
+
+// ── 주차 탭 생성 ──────────────────────────
+function initWeekTabs() {
+  const weeks = Object.keys(allData); // ["4월 3주", "4월 4주", ...]
+  const tabsEl = document.getElementById('weekTabs');
+  tabsEl.innerHTML = '';
+
+  // 오늘 날짜가 속한 주차 자동 선택
+  const today = getTodayStr();
+  let autoSelect = weeks[0];
+  for (let w of weeks) {
+    const dates = Object.keys(allData[w]);
+    if (dates.some(d => d.replace(/\s/g,'').startsWith(today.replace(/\s/g,'')))) {
+      autoSelect = w;
+    }
+  }
+
+  weeks.forEach(w => {
+    const btn = document.createElement('button');
+    btn.className = 'week-btn' + (w === autoSelect ? ' active' : '');
+    btn.textContent = w;
+    btn.onclick = () => selectWeek(w);
+    tabsEl.appendChild(btn);
+  });
+
+  selectWeek(autoSelect);
+}
+
+function selectWeek(weekName) {
+  currentWeek = weekName;
+  document.querySelectorAll('.week-btn').forEach(b =>
+    b.classList.toggle('active', b.textContent === weekName));
+  renderFilters();
+  render();
+}
+
+// ── 모드 전환 ─────────────────────────────
+function setMode(mode, btn) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderFilters();
+  render();
+}
+
+// ── 필터 UI 생성 ──────────────────────────
+function renderFilters() {
+  const el = document.getElementById('filters');
+  const dates = Object.keys(allData[currentWeek] || {});
+  const today = getTodayStr().replace(/\s/g,'');
+
+  // 날짜 옵션 (오늘 자동 선택)
+  const dateOptions = dates.map(d => {
+    const selected = d.replace(/\s/g,'').startsWith(today) ? ' selected' : '';
+    return `<option value="${d}"${selected}>${d}</option>`;
+  }).join('');
+
+  if (currentMode === 'student') {
+    el.innerHTML = `
+      <select id="fDate" onchange="render()">${dateOptions}</select>
+      <select id="fGrade" onchange="render()">
+        <option value="1">1학년</option>
+        <option value="2">2학년</option>
+        <option value="3">3학년</option>
+      </select>
+      <select id="fClass" onchange="render()">
+        <option value="1">1반</option>
+        <option value="2">2반</option>
+        <option value="3">3반</option>
+      </select>
+    `;
+  } else {
+    el.innerHTML = `
+      <select id="fDate" onchange="render()">${dateOptions}</select>
+      <input type="text" id="fKeyword" placeholder="과목명 입력 (예: 수학, 영어)"
+             oninput="render()" />
+    `;
+  }
+}
+
+// ── 렌더링 ────────────────────────────────
+function render() {
+  if (currentMode === 'student') renderStudent();
+  else renderTeacher();
+}
+
+function renderStudent() {
+  const date  = document.getElementById('fDate')?.value;
+  const grade = document.getElementById('fGrade')?.value;
+  const cls   = document.getElementById('fClass')?.value;
+  if (!date || !grade || !cls) return;
+
+  const key     = `${grade}-${cls}`;
+  const dayData = allData[currentWeek]?.[date];
+  const curP    = getCurrentPeriod();
+  const out     = document.getElementById('output');
+  const info    = document.getElementById('info');
+
+  info.innerHTML = `${date} &nbsp;|&nbsp; ${grade}학년 ${cls}반`
+    + (curP > 0 ? `<span class="badge">${curP}교시 수업 중</span>` : '');
+
+  if (!dayData) { out.innerHTML = '<div class="empty">해당 날짜의 데이터가 없습니다</div>'; return; }
+
+  let html = `<table>
+    <thead><tr><th>교시</th><th>시간</th><th>과목</th></tr></thead><tbody>`;
+  for (let p = 1; p <= 7; p++) {
+    const subj = dayData[p]?.[key] || '-';
+    html += `<tr${curP === p ? ' class="current-period"' : ''}>
+      <td>${p}교시</td>
+      <td style="color:#999">${TIMES[p-1][0]} ~ ${TIMES[p-1][1]}</td>
+      <td>${subj}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  out.innerHTML = html;
+}
+
+function renderTeacher() {
+  const date    = document.getElementById('fDate')?.value;
+  const keyword = document.getElementById('fKeyword')?.value?.trim();
+  const out     = document.getElementById('output');
+  const info    = document.getElementById('info');
+  const curP    = getCurrentPeriod();
+
+  info.innerHTML = date
+    + (curP > 0 ? `<span class="badge">${curP}교시 수업 중</span>` : '');
+
+  if (!keyword) { out.innerHTML = '<div class="empty">과목명을 입력하세요</div>'; return; }
+
+  const dayData = allData[currentWeek]?.[date];
+  if (!dayData) { out.innerHTML = '<div class="empty">해당 날짜의 데이터가 없습니다</div>'; return; }
+
+  const results = [];
+  for (let p = 1; p <= 7; p++) {
+    const row = dayData[p]; if (!row) continue;
+    for (let g of ['1','2','3']) {
+      for (let c of ['1','2','3']) {
+        const subj = row[`${g}-${c}`] || '';
+        if (subj.replace(/[\s㈜()]/g,'').includes(keyword.replace(/\s/g,''))) {
+          results.push({ p, g, c, subj });
+        }
+      }
+    }
+  }
+
+  if (results.length === 0) {
+    out.innerHTML = `<div class="empty">"${keyword}" 과목을 찾을 수 없습니다</div>`; return;
+  }
+
+  let html = `<table>
+    <thead><tr><th>교시</th><th>시간</th><th>학년/반</th><th>과목</th></tr></thead><tbody>`;
+  for (let { p, g, c, subj } of results) {
+    html += `<tr${curP === p ? ' class="current-period"' : ''}>
+      <td>${p}교시</td>
+      <td style="color:#999">${TIMES[p-1][0]} ~ ${TIMES[p-1][1]}</td>
+      <td>${g}학년 ${c}반</td>
+      <td>${subj}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  out.innerHTML = html;
+}
+
+// ── 시작 ──────────────────────────────────
+loadAll();
+</script>
+</body>
+</html>
